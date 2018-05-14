@@ -14,6 +14,11 @@ instance Show Symbol where
     show (SymClass value) = '[' : (value ++ "]")
     show (SymNonterminal value) = value
 
+getValue :: Symbol -> String
+getValue (SymLiteral s) = s
+getValue (SymClass s) = s
+getValue (SymNonterminal s) = s
+
 data Rule = Rule
     { name :: String
     , symbols :: [Symbol]
@@ -68,8 +73,11 @@ insertElement new position xs = insert' new position 0 xs
 
 addDistinct :: Eq a => a -> [a] -> [a]
 addDistinct new l
-  | new `elem` l = l
-  | otherwise = l ++ [new]
+    | new `elem` l = l
+    | otherwise = l ++ [new]
+
+appendDistinct :: Eq a => [a] -> [a] -> [a]
+appendDistinct new l = l ++ [x | x <- new, not(x `elem` l)]
 
 advance :: Int -> Item -> Item
 advance n i = Item { rule = (rule i)
@@ -77,16 +85,63 @@ advance n i = Item { rule = (rule i)
                    , origin = (origin i)
                    }
 
-firstStateSet startRuleName = [rule | rule <- myGrammar, name rule == startRuleName]
+firstStateSet startRuleName grammar =
+    map genItem [rule | rule <- grammar, name rule == startRuleName]
+    where
+        genItem rule = Item rule 0 0
 
+ -- prediction
+newItems :: Item -> [Rule] -> [Item]
+newItems item grammar
+    | not(check relevantSymbol) = []
+    | otherwise = map
+        (genItem item)
+        [r | r <- grammar, name r == getValue relevantSymbol]
+        where
+            check (SymClass _) = False
+            check (SymLiteral _) = False
+            check (SymNonterminal _) = True
+            genItem i rule = Item rule 0 (origin i)
+            relevantSymbol = (symbols $ rule item) !! dot item
+
+predictEach :: [Item] -> [Rule] -> [Item]
+{-predictEach (x:xs) grammar
+    | xs == [] = x
+    | otherwise = x : next
+        where
+            next = predictEach added grammar
+            added = xs ++ news
+            news = [i | i <- newItems (ruleName x) x grammar, not(i `elem` (x:xs))]
+            ruleName x = name $ rule x
+ -- inner recurses can't see full original list. this is a problem!-}
+predictEach stateSet grammar =
+    predictEach' stateSet grammar 0
+    where
+        predictEach' stateSet grammar position
+            | position == (length stateSet - 1) && length news == 0 = stateSet
+            | otherwise = predictEach' (stateSet ++ news) grammar (position + 1)
+            where
+                news = [i | i <- newItems', not(i `elem` stateSet)]
+                newItems' = newItems cur grammar
+                cur = stateSet !! position
 
  -- test stuff
+testFunc = predictEach stateSet myGrammar2
+
 myGrammar = [ getRule "S" ["'a'", "S", "'b'"]
             , getRule "S" ["'ba'"]
             ]
 
-numrule = getRule "Number" ["[0-9]", "\'.\'", "Number"]
-numitem = Item numrule 2 0
-numitem2 = Item numrule 0 0
+myGrammar2 = [ getRule "Sum" ["Sum", "[+-]", "Product"]
+             , getRule "Sum" ["Product"]
+             , getRule "Product" ["Product", "[*/]", "Factor"]
+             , getRule "Product" ["Factor"]
+             , getRule "Factor" ["'('", "Sum", "')'"]
+             , getRule "Factor" ["Number"]
+             , getRule "Number" ["[0-9]", "Number"]
+             , getRule "Number" ["[0-9]"]
+             ]
+
+stateSet = [ (Item (head myGrammar2) 2 0) ]
 
  -- recogniser
