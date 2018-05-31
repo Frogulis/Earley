@@ -5,6 +5,9 @@ module Earley
 
 import Data.List
 import Data.Maybe
+import Data.Char
+
+data Token = Token String String
 
 data Symbol = SymLiteral String | SymClass String | SymNonterminal String
     deriving (Eq)
@@ -105,15 +108,6 @@ newItems item grammar
             relevantSymbol = (symbols $ rule item) !! dot item
 
 predictEach :: [Item] -> [Rule] -> [Item]
-{-predictEach (x:xs) grammar
-    | xs == [] = x
-    | otherwise = x : next
-        where
-            next = predictEach added grammar
-            added = xs ++ news
-            news = [i | i <- newItems (ruleName x) x grammar, not(i `elem` (x:xs))]
-            ruleName x = name $ rule x
- -- inner recurses can't see full original list. this is a problem!-}
 predictEach stateSet grammar =
     predictEach' stateSet grammar 0
     where
@@ -124,6 +118,65 @@ predictEach stateSet grammar =
                 news = [i | i <- newItems', not(i `elem` stateSet)]
                 newItems' = newItems cur grammar
                 cur = stateSet !! position
+
+ -- scanning
+matches :: Symbol -> Token -> Bool
+matches (SymNonterminal value) (Token t v) = value == v
+matches (SymLiteral value) (Token t v) = value == v
+matches (SymClass value) (Token t v) = charsIn v value
+    where
+        charsIn (v:vs) chClass
+            | v `elem` (expand chClass) = charsIn vs chClass
+            | otherwise = False
+        charsIn [] chClass = True
+
+expand :: String -> String
+expand chClass = expand' "" False chClass
+    where
+        expand' temp True [] = temp ++ "-"
+        expand' temp False [] = temp
+        expand' temp flag ('-':xs) = expand' temp True xs
+        expand' temp True (x:xs)
+            | sameFullClass temp x = (expanded temp x) ++ expand' "" False xs
+            | otherwise = temp ++ "-" ++ expand' [x] False xs
+            where
+                classes = [gen 'A' 'Z', gen 'a' 'z', gen '0' '9']
+                gen start end
+                    | start == end = [end]
+                    | otherwise = start : gen (chr (ord start + 1)) end
+                sameFullClass temp x = sameFullClass' tempClass x
+                sameFullClass' Nothing x = False
+                sameFullClass' c x = c == findClass classes x
+                findClass [] ch = Nothing
+                findClass (x:xs) ch
+                    | ch `elem` x = Just x
+                    | otherwise = findClass xs ch
+                tempClass = findClass classes $ head temp
+                expanded temp x = takeWhile (<= x) suffix
+                suffix = dropWhile (< (head temp)) (fromJust tempClass)
+        expand' temp False (x:xs) = temp ++ expand' [x] False xs
+
+{-scanEach :: [Item] -> [Rule] -> Token -> [[Item]]
+scanEach stateSet grammar curToken =
+    scanEach' stateSet grammar 0 curToken
+    where
+        scanEach' stateSet grammar position curToken
+            | position == (length stateSet - 1) =
+            | not(isTerminal relevantSymbol) =
+                scanEach' stateSet grammar (position + 1) curToken
+            | otherwise = (getNew relevantSymbol curToken) :
+                (scanEach' stateSet grammar (position + 1) curToken)
+        relevantSymbol = (symbols $ rule item) !! dot item
+        where
+            item = stateSet !! position
+        getNew symbol token
+            |-}
+
+-- scanEach gives the next state set
+-- which is the set of earley items up to a terminal
+-- from the current state set
+-- that match the next input token
+
 
  -- test stuff
 testFunc = predictEach stateSet myGrammar2
