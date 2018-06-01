@@ -58,6 +58,10 @@ toSymbol (x:xs)
     | x == '['  = SymClass $ init xs
     | otherwise = SymNonterminal (x:xs) -- no characters to discard in this case
 
+symbolTester (SymLiteral s) = "SymLiteral " ++ s
+symbolTester (SymNonterminal s) = "SymNonterminal " ++ s
+symbolTester (SymClass s) = "SymClass " ++ s
+
 split :: Eq a => a -> [a] -> [[a]]
 split delimiter [] = [[]]
 split delimiter l
@@ -156,30 +160,29 @@ expand chClass = expand' "" False chClass
                 suffix = dropWhile (< (head temp)) (fromJust tempClass)
         expand' temp False (x:xs) = temp ++ expand' [x] False xs
 
-{-scanEach :: [Item] -> [Rule] -> Token -> [[Item]]
+scanEach :: [Item] -> [Rule] -> Token -> [Item]
 scanEach stateSet grammar curToken =
     scanEach' stateSet grammar 0 curToken
     where
         scanEach' stateSet grammar position curToken
-            | position == (length stateSet - 1) =
-            | not(isTerminal relevantSymbol) =
-                scanEach' stateSet grammar (position + 1) curToken
-            | otherwise = (getNew relevantSymbol curToken) :
-                (scanEach' stateSet grammar (position + 1) curToken)
-        relevantSymbol = (symbols $ rule item) !! dot item
-        where
-            item = stateSet !! position
-        getNew symbol token
-            |-}
+            | position == length stateSet = []
+            | not(isTerminal relevantSymbol) = next
+            | relevantSymbol `matches` curToken =
+                (advance 1 item) : next
+            | otherwise = next
+            where
+                item = stateSet !! position
+                relevantSymbol = (symbols $ rule item) !! dot item
+                next = scanEach' stateSet grammar (position + 1) curToken
+                isTerminal (SymNonterminal s) = False
+                isTerminal _ = True
 
--- scanEach gives the next state set
--- which is the set of earley items up to a terminal
--- from the current state set
--- that match the next input token
+ -- completion
 
 
  -- test stuff
-testFunc = predictEach stateSet myGrammar2
+predicted = predictEach stateSet myGrammar2
+testFunc = scanEach predicted myGrammar2 (Token "w" "3")
 
 myGrammar = [ getRule "S" ["'a'", "S", "'b'"]
             , getRule "S" ["'ba'"]
