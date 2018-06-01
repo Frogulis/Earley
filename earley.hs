@@ -58,10 +58,6 @@ toSymbol (x:xs)
     | x == '['  = SymClass $ init xs
     | otherwise = SymNonterminal (x:xs) -- no characters to discard in this case
 
-symbolTester (SymLiteral s) = "SymLiteral " ++ s
-symbolTester (SymNonterminal s) = "SymNonterminal " ++ s
-symbolTester (SymClass s) = "SymClass " ++ s
-
 split :: Eq a => a -> [a] -> [[a]]
 split delimiter [] = [[]]
 split delimiter l
@@ -179,10 +175,49 @@ scanEach stateSet grammar curToken =
 
  -- completion
 
+-- findOrigins
+-- Retrieves the origin rule(s) from the whole array
+-- for the given Item
+findOrigins :: [[Item]] -> Item -> [Item]
+findOrigins wholeArray item = origins item relevantSet
+    where
+        relevantSet = wholeArray !! origin item
+        origins i [] = []
+        origins i (x:xs)
+            | i `originatesFrom` x = x : origins i xs
+            | otherwise = origins i xs
+        originatesFrom i x = (getValue $ current x) == (name $ rule i)
+            where
+                current x = (symbols . rule) x !! dot x
+
+
+-- completeEach
+-- Returns the given list, and appended to that
+-- the advanced origin rules of any completed
+-- rules in the given list.
+-- Must be given both the current state set as
+-- well as the whole array of sets
+completeEach :: [Item] -> [Rule] -> [[Item]] -> [Item]
+completeEach stateSet grammar wholeArray = stateSet ++
+    completeEach' stateSet grammar wholeArray 0
+    where
+        completeEach' stateSet grammar wholeArray position
+            | position == length stateSet = []
+            | isComplete item =
+                map (advance 1) (findOrigins wholeArray item) ++ next
+            | otherwise = next
+            where
+                item = stateSet !! position
+                next = completeEach' stateSet grammar wholeArray (position + 1)
+                isComplete i = (length . symbols . rule) i == dot i
+
+
 
  -- test stuff
 predicted = predictEach stateSet myGrammar2
-testFunc = scanEach predicted myGrammar2 (Token "w" "3")
+testFunc = scanEach predicted myGrammar2 (Token "w" "(")
+test2 = completeEach testFunc myGrammar2 [predicted, testFunc]
+
 
 myGrammar = [ getRule "S" ["'a'", "S", "'b'"]
             , getRule "S" ["'ba'"]
@@ -198,6 +233,6 @@ myGrammar2 = [ getRule "Sum" ["Sum", "[+-]", "Product"]
              , getRule "Number" ["[0-9]"]
              ]
 
-stateSet = [ (Item (head myGrammar2) 2 0) ]
+stateSet = [ (Item (head myGrammar2) 0 0) ]
 
  -- recogniser
