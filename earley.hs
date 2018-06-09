@@ -211,6 +211,14 @@ completeEach stateSet grammar wholeArray = stateSet ++
                 next = completeEach' stateSet grammar wholeArray (position + 1)
                 isComplete i = (length . symbols . rule) i == dot i
 
+-- parse
+-- (If successful) returns the completed list of Earley items
+parse :: [Rule] -> String -> [Token] -> [[Item]]
+parse startRuleName grammar [] = []
+parse startRuleName grammar (x:xs) = eachStep firstSet
+    where
+        firstSet = firstStateSet startRuleName grammar
+        eachStep ()
 
 
  -- test stuff
