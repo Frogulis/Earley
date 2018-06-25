@@ -107,6 +107,8 @@ newItems item grammar
             genItem i rule = Item rule 0 (origin i)
             relevantSymbol = (symbols $ rule item) !! dot item
 
+-- predictEach
+-- returns the fully predicted form of the given state set
 predictEach :: [Item] -> [Rule] -> [Item]
 predictEach stateSet grammar =
     predictEach' stateSet grammar 0
@@ -118,6 +120,11 @@ predictEach stateSet grammar =
                 news = [i | i <- newItems', not(i `elem` stateSet)]
                 newItems' = newItems cur grammar
                 cur = stateSet !! position
+-- predict
+-- wraps predictEach for use with the whole array
+predict :: [[Item]] -> [Rule] -> [[Item]]
+predict stateArray grammar =
+    init stateArray ++ [predictEach (last stateArray) grammar]
 
  -- scanning
 matches :: Symbol -> Token -> Bool
@@ -156,6 +163,8 @@ expand chClass = expand' "" False chClass
                 suffix = dropWhile (< (head temp)) (fromJust tempClass)
         expand' temp False (x:xs) = temp ++ expand' [x] False xs
 
+-- scanEach
+-- returns the *next* state set based on the scans
 scanEach :: [Item] -> [Rule] -> Token -> [Item]
 scanEach stateSet grammar curToken =
     scanEach' stateSet grammar 0 curToken
@@ -172,6 +181,12 @@ scanEach stateSet grammar curToken =
                 next = scanEach' stateSet grammar (position + 1) curToken
                 isTerminal (SymNonterminal s) = False
                 isTerminal _ = True
+
+-- scan
+-- wraps scanEach for use with the whole array
+scan :: [[Item]] -> [Rule] -> Token -> [[Item]]
+scan stateArray grammar curToken =
+    stateArray ++ [scanEach (last stateArray) grammar curToken]
 
  -- completion
 
@@ -211,14 +226,21 @@ completeEach stateSet grammar wholeArray = stateSet ++
                 next = completeEach' stateSet grammar wholeArray (position + 1)
                 isComplete i = (length . symbols . rule) i == dot i
 
+-- complete
+-- wraps completeEach for use with the whole array
+complete :: [[Item]] -> [Rule] -> [[Item]]
+complete stateArray grammar =
+    init stateArray ++ [completeEach (last stateArray) grammar (init stateArray)]
+
 -- parse
 -- (If successful) returns the completed list of Earley items
-parse :: [Rule] -> String -> [Token] -> [[Item]]
-parse startRuleName grammar [] = []
-parse startRuleName grammar (x:xs) = eachStep firstSet
+{-parse :: [Rule] -> String -> [Token] -> [[Item]]
+parse grammar startRuleName [] = []
+parse grammar startRuleName (x:xs) = next
     where
         firstSet = firstStateSet startRuleName grammar
-        eachStep ()
+        next = (complete . scan' . predict) firstSet
+        scan' stateArray grammar = scan stateArray grammar x-}
 
 
  -- test stuff
