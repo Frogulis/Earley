@@ -234,23 +234,34 @@ complete stateArray grammar =
 
 -- parse
 -- (If successful) returns the completed list of Earley items
-{-parse :: [Rule] -> String -> [Token] -> [[Item]]
-parse grammar startRuleName [] = []
-parse grammar startRuleName (x:xs) = next
+parse :: [Rule] -> String -> [Token] -> [[Item]]
+parse grammar startRuleName str = next [firstSet] grammar str
     where
         firstSet = firstStateSet startRuleName grammar
-        next = (complete . scan' . predict) firstSet
-        scan' stateArray grammar = scan stateArray grammar x-}
+        next stateArray grammar [] = stateArray
+        next stateArray grammar (x:xs)
+            | hasWork   = next (process stateArray grammar x) grammar xs
+            | otherwise = stateArray
+            where
+                hasWork = length (last stateArray) > 0
+        process stateArray grammar token =
+            (complete' . scan' . predict') stateArray
+            where
+                complete' stateArray = complete stateArray grammar
+                scan' stateArray = scan stateArray grammar token
+                predict' stateArray = predict stateArray grammar
 
 
  -- test stuff
-predicted = predictEach stateSet myGrammar2
-testFunc = scanEach predicted myGrammar2 (Token "w" "(")
-test2 = completeEach testFunc myGrammar2 [predicted, testFunc]
+tokenise [] = []
+tokenise (x:xs) = Token "whatever" [x] : tokenise xs
 
+testTokens = tokenise "ba"
+
+test = parse myGrammar "S" testTokens
 
 myGrammar = [ getRule "S" ["'a'", "S", "'b'"]
-            , getRule "S" ["'ba'"]
+            , getRule "S" ["'b', 'a'"]
             ]
 
 myGrammar2 = [ getRule "Sum" ["Sum", "[+-]", "Product"]
