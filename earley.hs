@@ -9,6 +9,9 @@ import Data.Char
 
 data Token = Token String String
 
+instance Show Token where
+    show (Token t v) = "(" ++ t ++ "," ++ v ++ ")"
+
 data Symbol = SymLiteral String | SymClass String | SymNonterminal String
     deriving (Eq)
 
@@ -45,6 +48,9 @@ instance Show Item where
           dottedRule i rule = Rule (name rule) (insertDotAt i $ symbols rule)
           insertDotAt i syms = insertElement dotSym i syms
           dotSym = SymNonterminal [toEnum 183 :: Char]
+
+isFinished :: Item -> Bool
+isFinished i = (length . symbols . rule) i == dot i
 
 getRule :: String -> [String] -> Rule
 getRule name symbols = Rule name $ toSymbols symbols
@@ -94,9 +100,9 @@ firstStateSet startRuleName grammar =
         genItem rule = Item rule 0 0
 
  -- prediction
-newItems :: Item -> [Rule] -> [Item]
-newItems item grammar
-    | not(check relevantSymbol) = []
+newItems :: Item -> [Rule] -> Int -> [Item]
+newItems item grammar curStateIndex
+    | isFinished item || not(check relevantSymbol) = []
     | otherwise = map
         (genItem item)
         [r | r <- grammar, name r == getValue relevantSymbol]
@@ -104,27 +110,30 @@ newItems item grammar
             check (SymClass _) = False
             check (SymLiteral _) = False
             check (SymNonterminal _) = True
-            genItem i rule = Item rule 0 (origin i)
+            genItem i rule = Item rule 0 curStateIndex
             relevantSymbol = (symbols $ rule item) !! dot item
+
+predictEach' :: [Item] -> [Rule] -> Int -> Int -> [Item]
+predictEach' stateSet grammar position csi
+    | position == (length stateSet - 1) && length news == 0 = stateSet
+    | otherwise = predictEach' (stateSet ++ news) grammar (position + 1) csi
+    where
+        news = [i | i <- newItems', not(i `elem` stateSet)]
+        newItems' = newItems cur grammar csi
+        cur = stateSet !! position
 
 -- predictEach
 -- returns the fully predicted form of the given state set
-predictEach :: [Item] -> [Rule] -> [Item]
-predictEach stateSet grammar =
-    predictEach' stateSet grammar 0
-    where
-        predictEach' stateSet grammar position
-            | position == (length stateSet - 1) && length news == 0 = stateSet
-            | otherwise = predictEach' (stateSet ++ news) grammar (position + 1)
-            where
-                news = [i | i <- newItems', not(i `elem` stateSet)]
-                newItems' = newItems cur grammar
-                cur = stateSet !! position
+predictEach :: [Item] -> [Rule] -> Int -> [Item]
+predictEach [] grammar curStateIndex = []
+predictEach stateSet grammar curStateIndex =
+    predictEach' stateSet grammar 0 curStateIndex
+
 -- predict
 -- wraps predictEach for use with the whole array
 predict :: [[Item]] -> [Rule] -> [[Item]]
 predict stateArray grammar =
-    init stateArray ++ [predictEach (last stateArray) grammar]
+    init stateArray ++ [predictEach (last stateArray) grammar (length stateArray - 1)]
 
  -- scanning
 matches :: Symbol -> Token -> Bool
@@ -171,7 +180,7 @@ scanEach stateSet grammar curToken =
     where
         scanEach' stateSet grammar position curToken
             | position == length stateSet = []
-            | not(isTerminal relevantSymbol) = next
+            | isFinished item || not(isTerminal relevantSymbol) = next
             | relevantSymbol `matches` curToken =
                 (advance 1 item) : next
             | otherwise = next
@@ -218,13 +227,12 @@ completeEach stateSet grammar wholeArray = stateSet ++
     where
         completeEach' stateSet grammar wholeArray position
             | position == length stateSet = []
-            | isComplete item =
+            | isFinished item =
                 map (advance 1) (findOrigins wholeArray item) ++ next
             | otherwise = next
             where
                 item = stateSet !! position
                 next = completeEach' stateSet grammar wholeArray (position + 1)
-                isComplete i = (length . symbols . rule) i == dot i
 
 -- complete
 -- wraps completeEach for use with the whole array
@@ -254,14 +262,18 @@ parse grammar startRuleName str = next [firstSet] grammar str
 
  -- test stuff
 tokenise [] = []
-tokenise (x:xs) = Token "whatever" [x] : tokenise xs
+tokenise (x:xs) = Token "TOKEN" [x] : tokenise xs
 
-testTokens = tokenise "ba"
+testTokens2 = tokenise "1*3"
+testTokens = tokenise "ab"
 
 test = parse myGrammar "S" testTokens
+test2 = parse myGrammar2 "Sum" $ testTokens2
+
+myFirstSet = firstStateSet "Sum" myGrammar2
 
 myGrammar = [ getRule "S" ["'a'", "S", "'b'"]
-            , getRule "S" ["'b', 'a'"]
+            , getRule "S" ["'b'", "'a'"]
             ]
 
 myGrammar2 = [ getRule "Sum" ["Sum", "[+-]", "Product"]
