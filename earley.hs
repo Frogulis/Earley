@@ -222,23 +222,29 @@ findOrigins wholeArray item = origins item relevantSet
 -- Must be given both the current state set as
 -- well as the whole array of sets
 completeEach :: [Item] -> [Rule] -> [[Item]] -> [Item]
-completeEach stateSet grammar wholeArray = stateSet ++
+completeEach stateSet grammar wholeArray =
     completeEach' stateSet grammar wholeArray 0
     where
         completeEach' stateSet grammar wholeArray position
-            | position == length stateSet = []
+            | position == length stateSet = stateSet
             | isFinished item =
-                map (advance 1) (findOrigins wholeArray item) ++ next
+                completeEach' updated grammar (init wholeArray ++ [updated]) (position + 1)
             | otherwise = next
             where
+                updated = stateSet ++ news
+                news = map (advance 1) (findOrigins wholeArray item)
                 item = stateSet !! position
                 next = completeEach' stateSet grammar wholeArray (position + 1)
+{-completeEach :: [Item] -> [Rule] -> [[Item]] -> [Item]
+completeEach stateSet wholeArray grammar
+    | tail stateSet == [] = []-}
+
 
 -- complete
 -- wraps completeEach for use with the whole array
 complete :: [[Item]] -> [Rule] -> [[Item]]
 complete stateArray grammar =
-    init stateArray ++ [completeEach (last stateArray) grammar (init stateArray)]
+    init stateArray ++ [completeEach (last stateArray) grammar stateArray]
 
 -- parse
 -- (If successful) returns the completed list of Earley items
