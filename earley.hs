@@ -246,11 +246,28 @@ complete :: [[Item]] -> [Rule] -> [[Item]]
 complete stateArray grammar =
     init stateArray ++ [completeEach (last stateArray) grammar stateArray]
 
--- parse
--- (If successful) returns the completed list of Earley items
-parse :: [Rule] -> String -> [Token] -> [[Item]]
-parse grammar startRuleName str = next [firstSet] grammar str
+accepts :: [[Item]] -> String -> [Token] -> Bool
+accepts stateArray startRuleName str
+    | length stateArray == length str + 1 = topRuleCompleted
+    | otherwise = False
     where
+        topRuleCompleted = topRuleCompleted' (last stateArray) startRuleName
+        topRuleCompleted' [] _ = False
+        topRuleCompleted' (x:xs) startRuleName
+            | name (rule x) == startRuleName
+                && origin x == 0
+                && isFinished x = True
+            | otherwise = topRuleCompleted' xs startRuleName
+
+-- parse
+-- (If successful) returns a tuple containing
+-- the completed list of Earley items and whether the
+-- algorithm was successful
+recognise :: [Rule] -> String -> [Token] -> ([[Item]], Bool)
+recognise grammar startRuleName str = (result, successful)
+    where
+        successful = accepts result startRuleName str
+        result = next [firstSet] grammar str
         firstSet = firstStateSet startRuleName grammar
         next stateArray grammar [] = stateArray
         next stateArray grammar (x:xs)
@@ -273,8 +290,8 @@ tokenise (x:xs) = Token "TOKEN" [x] : tokenise xs
 testTokens2 = tokenise "1*3"
 testTokens = tokenise "ab"
 
-test = parse myGrammar "S" testTokens
-test2 = parse myGrammar2 "Sum" $ testTokens2
+test = recognise myGrammar "S" testTokens
+test2 = recognise myGrammar2 "Sum" $ testTokens2
 
 myFirstSet = firstStateSet "Sum" myGrammar2
 
@@ -293,5 +310,3 @@ myGrammar2 = [ getRule "Sum" ["Sum", "[+-]", "Product"]
              ]
 
 stateSet = [ (Item (head myGrammar2) 0 0) ]
-
- -- recogniser
